@@ -1,3 +1,4 @@
+import java.io.FileReader;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -12,9 +13,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
 
+import javax.security.auth.login.Configuration;
+import javax.xml.ws.spi.http.HttpContext;
+
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
 import net.sf.json.JSONSerializer;
+
+//import org.json.simple.parser.JSONParser;
+//import org.json.simple.JSONObject;
+//import org.json.simple.*;
+
 
 import org.apache.commons.io.IOUtils;
 
@@ -24,7 +33,8 @@ public class MyJson {
 	private static String tableName = "yelpbusiness";
 	 public static void main(String[] args) {
 		 //main12();
-		prevMain();
+		//prevMain();
+		mainnew();
 	 }
 	 private static void saveRecord(JSONArray nameArray, JSONArray valArray, Connection conn) throws SQLException {
 	
@@ -173,18 +183,23 @@ public class MyJson {
 			  
 			   Connection conn = getConnection();
 			   ClassLoader cl = MyJson.class.getClassLoader();
-			   InputStream is = cl.getResourceAsStream("5000data.json");
-			   String str = IOUtils.toString(is);
+			  InputStream is = cl.getResourceAsStream("5000data.json");
+			   //FileReader reader = new FileReader("C:\\Users\\Sahaj\\workspace\\YelpParser\\src\\FinalBusiness.json");
+
+			  String str = IOUtils.toString(is);
 			   System.out.println("STARTING NOW");
-			   JSONObject jsonObject = (JSONObject) JSONSerializer.toJSON(str);
+			   //JSONObject jsonObject = new JSONObject();
+			  // JSONParser jsonParser = new JSONParser();
+			  // JSONObject jsonObject = (JSONObject) JSONSerializer.toJSON(str);
+			  // JSONObject jsonObject  =  (JSONObject) jsonParser.parse(reader);
 			   System.out.println("STARTING to read JSON");
-			   JSONArray jsonArr = jsonObject.getJSONArray("profiles");
+			   //JSONArray jsonArr =(JSONArray) jsonObject.get("profiles");
 			   JSONObject obj = null;
 			   JSONArray nameArr = null;
 			   JSONArray valArr = null;
 			   System.out.println("STARTING For loop NOW");
-			   for (int i = 0; i < jsonArr.size(); i++) {
-			    obj = jsonArr.getJSONObject(i);
+			  /* for (int i = 0; i < jsonArr.size(); i++) {
+			    obj = (JSONObject)jsonArr.get(i);
 			    nameArr = obj.names();
 			    nameArr.remove(13);
 			    nameArr.remove(8);
@@ -205,10 +220,24 @@ public class MyJson {
 			   // System.out.println(valArr);
 			    //String[] listCategories = replaced.split(",");
 			    saveRecord(nameArr, valArr, conn);
-			   }
+			   }*/
 			  } catch (Exception e) {
 			   e.printStackTrace();
 			  }
+	 }
+	 public static void recoCategory(Connection conn, String userid){
+		 String rc = "select r.business_id from reviews r"
+					+" where r.user_id = ? group by r.date"; 
+		 PreparedStatement pstmt = null;
+		 
+		 try{
+		 pstmt = conn.prepareStatement(rc);
+		 pstmt.setString(1, userid);
+		 ResultSet businessList = pstmt.executeQuery();
+		 }catch(Exception e){
+			 e.printStackTrace();
+		 }
+		 
 	 }
 	 public static void findTrendingCategory(String city, Integer zip, Connection conn){
 		 String sb = "select b.categories from yelpbusiness b"
@@ -241,21 +270,104 @@ public class MyJson {
 			 
 		 }
 
-		 int maxValueInMap=(Collections.max( categoryMap.values()));  // This will return max value in the Hashmap
+		 int maxValueInMap=(Collections.max( categoryMap.values())); 
+		 List<String> maxCategory  =  new ArrayList<String>();// This will return max value in the Hashmap
 	        for (Entry<String, Integer> entry : categoryMap.entrySet()) {  // Itrate through hashmap
 	        	//System.out.println(entry.getKey() + entry.getValue());
-	        	List<String> maxCategory  =  new ArrayList<String>();
+	        	
 	        	if (entry.getValue()==maxValueInMap) {
 	            	
 	                System.out.println(entry.getKey() + entry.getValue());     // Print the key with max value
 	                maxCategory.add(entry.getKey());
+	                
+	                
 	            }
 	        }
-		 }catch(Exception e){
+	        HashMap<String,Integer> reviewCountMap = new HashMap <String,Integer>();
+	        	for (String checkReviewforCategory : maxCategory){
+	        		 String rc = "select sum(b.review_count) from yelpbusiness b"
+	     					+" where b.categories LIKE ? and b.city = ? and b.zip = ?;";
+	     		
+	     		 PreparedStatement pstmtRC = null;
+	     		 
+	     		 	
+		     		 pstmtRC = conn.prepareStatement(rc);
+		     		 pstmtRC.setString(1, '%'+checkReviewforCategory+'%');
+		     		pstmtRC.setString(2, city);
+		     		pstmtRC.setInt(3, zip);
+		     		 System.out.println(pstmtRC);
+		     		 ResultSet reviewCountSum = pstmtRC.executeQuery();
+		     		 if (reviewCountSum.next())
+		     		 {System.out.println(reviewCountSum.getInt(1));
+		     		 reviewCountMap.put(checkReviewforCategory,reviewCountSum.getInt(1));}
+		     
+	     		
+	     } 
+	   		 int maxValueofRC=(Collections.max(reviewCountMap.values())); 
+     		 System.out.println(maxValueofRC);
+    		 List<String> maxRC  =  new ArrayList<String>();// This will return max value in the Hashmap
+    	        for (Entry<String, Integer> entry : reviewCountMap.entrySet()) {  // Itrate through hashmap
+    	        	//System.out.println(entry.getKey() + entry.getValue());
+    	        	
+    	        	if (entry.getValue()==maxValueofRC) {
+    	            	
+    	                System.out.println(entry.getKey() + entry.getValue());     // Print the key with max value
+    	                String insertQuery = "insert into trendingCatergoryNeigborhood values(?,?,?);";
+    	                PreparedStatement pstmtIQ = null;
+    		     		 
+    	     		 	
+    	                pstmtIQ = conn.prepareStatement(insertQuery);
+    	                pstmtIQ.setString(3, entry.getKey());
+    	                pstmtIQ.setString(1, city);
+    	                pstmtIQ.setInt(2, zip);
+    	                System.out.println(pstmtIQ);
+    	                pstmtIQ.execute();
+    	                
+    	            }
+    	        }
+		 
+	 } catch(Exception e){
 			 e.printStackTrace();
 		 }
-		 
-		 
 	 }
-	 
+	 public static void mainnew(){
+		 try {
+			  
+			   Connection conn = getConnection();
+			   System.out.println("Got connection");
+			   ClassLoader cl = MyJson.class.getClassLoader();
+			   InputStream is = cl.getResourceAsStream("FinalBusiness.json");
+			   String str = IOUtils.toString(is);
+			   JSONObject jsonObject = (JSONObject) JSONSerializer.toJSON(str);
+			   JSONArray jsonArr = jsonObject.getJSONArray("profiles");
+			   JSONObject obj = null;
+			   JSONArray nameArr = null;
+			   JSONArray valArr = null;
+			   
+			   for (int i = 0; i < jsonArr.size(); i++) {
+			    obj = jsonArr.getJSONObject(i);
+			    nameArr = obj.names();
+			    nameArr.remove(13);
+			    nameArr.remove(8);
+			    nameArr.remove(2);
+			    nameArr.add("zip");
+			    System.out.println(nameArr);
+			    valArr = obj.toJSONArray(nameArr);
+			    valArr.set(2, valArr.get(2).toString());
+			   // ArrayList categories = new ArrayList();
+			    String cat = valArr.get(3).toString();
+			    String replaced = cat.substring(1,cat.length()-1);
+			    valArr.set(3, replaced);
+			    //System.out.println(replaced);
+			    String addr = valArr.get(1).toString();
+				String zipCode = addr.substring(addr.length()- 5, addr.length() );
+			    valArr.add(zipCode);
+			    System.out.println(valArr);
+			    //String[] listCategories = replaced.split(",");
+			    saveRecord(nameArr, valArr, conn);
+			   }
+			  } catch (Exception e) {
+			   e.printStackTrace();
+			  }
+	 }
 }
